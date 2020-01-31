@@ -1,0 +1,40 @@
+pxf介绍
+https://gpdb.docs.pivotal.io/6-2/pxf/overview_pxf.html
+
+安装pxf framework
+
+首先在对应的数据库启用pxf扩展功能
+https://gpdb.docs.pivotal.io/520/pxf/using_pxf.html#enable-pxf-ext
+
+Enable Procedure
+    gpadmin@gpmaster$ psql -d <database-name> -U gpadmin
+    database-name=# CREATE EXTENSION pxf;
+
+Disable Procedure
+    gpadmin@gpmaster$ psql -d <database-name> -U gpadmin
+    database-name=# DROP EXTENSION pxf;
+
+使用jdbc连接外部mysql数据库样例
+    注册mysql-jdbc-driver
+    编辑具体的配置信息
+    使用 pxf cluster sync 同步配置信息
+    重新启动pxf pxf cluster start
+    
+    drop external table login;
+    CREATE EXTERNAL TABLE login (
+	_rid INTEGER,
+	TIME TIMESTAMP,
+	logymd VARCHAR,
+	loghms VARCHAR,
+	roleid BIGINT,
+	zoneid INTEGER,
+	usercreatetime TIMESTAMP,
+	usercreateymd VARCHAR,
+	usercreatehms VARCHAR,
+	moneytotal REAL,
+	activedays INTEGER,
+	viplevel INTEGER,
+	country VARCHAR,
+	ostype INTEGER,
+    stageid INTEGER 
+    ) LOCATION ( 'pxf://login?PROFILE=Jdbc&SERVER=yongshi&PARTITION_BY=logymd:date&RANGE=2020-01-07:2020-01-14&INTERVAL=1:day' ) FORMAT 'CUSTOM' ( FORMATTER = 'pxfwritable_import' );

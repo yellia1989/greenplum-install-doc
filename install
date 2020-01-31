@@ -1,3 +1,4 @@
+Green1989@
 
 目的是搭建一个最简单的greenplum,即只有一个master,两个segment
 
@@ -58,6 +59,9 @@ db版本6.2.1
     磁盘预读
         vim /etc/rc.d/rc.local
             /sbin/blockdev --setra 16384 /dev/mapper/centos_sdw2-root
+        chmod +x /etc/rc.d/rc.local
+    XFS Mount Options    
+        /dev/data /data xfs nodev,noatime,nobarrier,inode64 0 0
     Disk I/O scheduler
         grubby --update-kernel=ALL --args="elevator=deadline"
     Transparent Huge Pages (THP)
@@ -65,23 +69,18 @@ db版本6.2.1
     配置ntp
         yum install -y ntp
         master
-            restrict default kod nomodify notrap nopeer noquery
-            restrict -6 default kod nomodify notrap nopeer noquery
+            restrict default nomodify
             restrict 127.0.0.1
             restrict -6 ::1
             server 0.pool.ntp.org
             server 1.pool.ntp.org
             server 2.pool.ntp.org
             server 3.pool.ntp.org
-            restrict 10.10.10.0 mask 255.255.255.0 nomodify notrap
+            restrict 10.10.10.0 mask 255.255.255.0 nomodify
             driftfile /var/lib/ntp/drift
             keys /etc/ntp/keys
         segment
-            restrict default kod nomodify notrap nopeer noquery
-            restrict -6 default kod nomodify notrap nopeer noquery
-            restrict 127.0.0.1
-            restrict -6 ::1
-            server ntp.server.com
+            server mfw
             driftfile /var/lib/ntp/drift
             keys /etc/ntp/keys
     创建gpadmin用户
@@ -91,6 +90,7 @@ db版本6.2.1
         su - gpadmin
         ssh-keygen -t rsa -b 4096
         visudo
+        uncomment  %wheel        ALL=(ALL)       NOPASSWD: ALL
         usermod -aG wheel gpadmin
         mkdir /data
         chown -R gpadmin:gpadmin /data
@@ -112,10 +112,9 @@ Enabling Passwordless SSH
         sdw2
     gpssh-exkeys -f hostfile_exkeys
 
-Creating the Data Storage Areas
-    root登录master
+Creating the Data Storage Areas on mster
+    gpadmin登录master执行
     mkdir -p /data/master
-    chown gpadmin:gpadmin /data/master
     
 Creating Data Storage Areas on Segment Hosts
     gpadmin登录master执行
@@ -123,4 +122,71 @@ Creating Data Storage Areas on Segment Hosts
         sdw1
         sdw2
     gpssh -f hostfile_gpssh_segonly -e 'mkdir -p /data/primary'
-    gpssh -f hostfile_gpssh_segonly -e 'mkdir -p /data/mirror'
+    
+    
+Validating Disk I/O and Memory Bandwidth    
+--------------------
+--  DISK WRITE TEST
+--------------------
+
+--------------------
+--  DISK READ TEST
+--------------------
+
+--------------------
+--  STREAM TEST
+--------------------
+
+-------------------
+--  NETPERF TEST
+-------------------
+NOTICE: -t is deprecated, and has no effect
+NOTICE: -f is deprecated, and has no effect
+NOTICE: -t is deprecated, and has no effect
+NOTICE: -f is deprecated, and has no effect
+
+====================
+==  RESULT 2020-01-22T22:06:01.278197
+====================
+
+ disk write avg time (sec): 1.85
+ disk write tot bytes: 4079157248
+ disk write tot bandwidth (MB/s): 2105.82
+ disk write min bandwidth (MB/s): 1013.07 [sdw1]
+ disk write max bandwidth (MB/s): 1092.75 [sdw2]
+
+
+ disk read avg time (sec): 1.06
+ disk read tot bytes: 4079157248
+ disk read tot bandwidth (MB/s): 3701.43
+ disk read min bandwidth (MB/s): 1736.69 [sdw1]
+ disk read max bandwidth (MB/s): 1964.74 [sdw2]
+
+
+ stream tot bandwidth (MB/s): 25821.00
+ stream min bandwidth (MB/s): 12668.30 [sdw1]
+ stream max bandwidth (MB/s): 13152.70 [sdw2]
+
+Netperf bisection bandwidth test
+sdw1 -> sdw2 = 807.100000
+sdw2 -> sdw1 = 828.150000
+
+Summary:
+sum = 1635.25 MB/sec
+min = 807.10 MB/sec
+max = 828.15 MB/sec
+avg = 817.62 MB/sec
+median = 828.15 MB/sec
+
+
+Creating the Greenplum Database Configuration File
+
+Setting the Greenplum Database Timezone
+    gpconfig -s TimeZone
+    gpconfig -c TimeZone -v 'US/Pacific'
+    
+Setting Greenplum Environment Variables
+    login master as gpadmin
+    vi ~/.bashrc
+        source /usr/local/greenplum-db/greenplum_path.sh
+        export MASTER_DATA_DIRECTORY=/data/master/gpseg-1
